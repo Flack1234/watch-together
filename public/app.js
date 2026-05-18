@@ -188,6 +188,31 @@ socket.on('chat', (msg) => {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 });
 
+// ---- REACTIONS ----
+const reactionsCanvas = document.getElementById('reactions-canvas');
+
+document.querySelectorAll('.react-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const emoji = btn.dataset.emoji;
+    socket.emit('reaction', emoji);
+    spawnReaction(emoji);
+  });
+});
+
+socket.on('reaction', (emoji) => {
+  spawnReaction(emoji);
+});
+
+function spawnReaction(emoji) {
+  const el = document.createElement('div');
+  el.className = 'floating-emoji';
+  el.textContent = emoji;
+  el.style.left = (Math.random() * 80 + 10) + '%';
+  el.style.bottom = '10%';
+  reactionsCanvas.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
 // ---- HELPERS ----
 function escapeHtml(str) {
   const d = document.createElement('div');

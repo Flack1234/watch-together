@@ -37,6 +37,10 @@ io.on('connection', (socket) => {
     io.emit('chat', { sender: name, text });
   });
 
+  socket.on('reaction', (emoji) => {
+    socket.broadcast.emit('reaction', emoji);
+  });
+
   socket.on('load-video', (videoId) => {
     currentVideo = { videoId, time: 0, playing: true, lastUpdate: Date.now() };
     socket.broadcast.emit('sync', { videoId, time: 0, playing: true });
