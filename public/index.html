@@ -8,12 +8,23 @@
 </head>
 <body>
 
+  <!-- Password overlay -->
+  <div id="password-overlay">
+    <div class="login-card">
+      <h1>🔒 Watch Together</h1>
+      <p>Введи пароль для входу</p>
+      <input type="password" id="password-input" placeholder="Пароль..." autofocus />
+      <button id="password-btn">Підтвердити</button>
+      <p id="password-error" class="error-text hidden">Невірний пароль!</p>
+    </div>
+  </div>
+
   <!-- Login overlay -->
-  <div id="login-overlay">
+  <div id="login-overlay" class="hidden">
     <div class="login-card">
       <h1>🎬 Watch Together</h1>
       <p>Введи своє ім'я, щоб приєднатися</p>
-      <input type="text" id="name-input" placeholder="Твоє ім'я..." maxlength="20" autofocus />
+      <input type="text" id="name-input" placeholder="Твоє ім'я..." maxlength="20" />
       <button id="join-btn">Увійти</button>
     </div>
   </div>

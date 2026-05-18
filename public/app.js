@@ -1,6 +1,12 @@
 const socket = io();
 
+const SITE_PASSWORD = '4422';
+
 // DOM elements
+const passwordOverlay = document.getElementById('password-overlay');
+const passwordInput = document.getElementById('password-input');
+const passwordBtn = document.getElementById('password-btn');
+const passwordError = document.getElementById('password-error');
 const loginOverlay = document.getElementById('login-overlay');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
@@ -18,6 +24,22 @@ const sendBtn = document.getElementById('send-btn');
 let player = null;
 let myName = '';
 let ignoreEvents = false; // prevents echo loops
+
+// ---- PASSWORD ----
+function checkPassword() {
+  const pwd = passwordInput.value.trim();
+  if (pwd === SITE_PASSWORD) {
+    passwordOverlay.classList.add('hidden');
+    loginOverlay.classList.remove('hidden');
+    nameInput.focus();
+  } else {
+    passwordError.classList.remove('hidden');
+    passwordInput.value = '';
+    passwordInput.focus();
+  }
+}
+passwordBtn.addEventListener('click', checkPassword);
+passwordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') checkPassword(); });
 
 // ---- LOGIN ----
 function doJoin() {

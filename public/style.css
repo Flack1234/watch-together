@@ -239,6 +239,19 @@ main {
 
 #send-btn { padding: 10px 16px; font-size: 1.1rem; }
 
+.error-text {
+  color: #f87171;
+  font-size: .85rem;
+  margin-top: 12px;
+}
+
+#password-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  z-index: 101;
+}
+
 /* ---- SCROLLBAR ---- */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
