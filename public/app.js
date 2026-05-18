@@ -26,8 +26,24 @@ let myName = '';
 let ignoreEvents = false; // prevents echo loops
 
 // ---- NOTIFICATION SOUND ----
-const msgSound = new Audio('data:audio/wav;base64,UklGRl4FAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YToFAAAAAP//AAAAAP//AAD//wAAAAD//wAAAAAAAQABAAEAAQACAAIAAwADAAQABQAGAAcACQAKAAwADgARABMAFgAZABwAIAAkACgALAAxADYAOwBBAEcATQBTAFoAYQBoAG8AdgB+AIUAjACUAJsAowCqALIAuQDBAMgAzwDWAN0A4wDpAPAA9QD7AAABBQEKAQ4BEgEWARkBHAEeASABIQEiASIBIgEhASABHgEcARkBFgESAQ4BCgEFAQAB+wD1APAA6QDjAN0A1gDPAMgAwQC6ALIAqwCjAJsAlACMAIUAfgB2AG8AaABhAFoAUwBNAEcAQQA7ADYAMQAsACgAJAAgABwAGQAWABMAEQAOAAwACgAJAAcABgAFAAQAAwACAAIAAQABAAAAAAAA//8AAP//AAAAAP//AAD//wAAAAAAAAAAAAD//wAA//8AAP//AAD//wAA/v8AAP7/AAD+/wAA/v8AAP7/AAD9/wAA/f8AAP3/AAD8/wAA/P8AAPv/AAD7/wAA+v8AAPr/AAD5/wAA+P8AAPj/AAD3/wAA9v8AAPX/AAD0/wAA9P8AAPP/AADy/wAA8f8AAPD/AADv/wAA7v8AAO3/AADs/wAA6/8AAOr/AADp/wAA6P8AAOf/AADm/wAA5f8AAOT/AADj/wAA4v8AAOH/AADh/wAA4P8AAN//AADe/wAA3v8AAN3/AADd/wAA3P8AANz/AADb/wAA2/8AANv/AADb/wAA2v8AANr/AADa/wAA2v8AANr/AADa/wAA2v8AANv/AADb/wAA2/8AANv/AADc/wAA3P8AAN3/AADd/wAA3v8AAN7/AADf/wAA4P8AAOH/AADh/wAA4v8AAOP/AADk/wAA5f8AAOb/AADn/wAA6P8AAOn/AADq/wAA6/8AAOz/AADt/wAA7v8AAO//AADw/wAA8f8AAPL/AADz/wAA9P8AAPX/AAD1/wAA9v8AAPf/AAD4/wAA+P8AAPn/AAD6/wAA+v8AAPv/AAD7/wAA/P8AAPz/AAD9/wAA/f8AAP3/AAD+/wAA/v8AAP7/AAD+/wAA//8AAP//AAD//wAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
 let soundEnabled = true;
+function playMsgSound() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch (e) {}
+}
 
 // ---- PASSWORD ----
 function checkPassword() {
@@ -163,45 +179,15 @@ socket.on('users', (list) => {
 });
 
 // ---- CHAT ----
-let replyingTo = null;
-
 function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
-  if (replyingTo) {
-    socket.emit('chat', { text, replyTo: replyingTo });
-    cancelReply();
-  } else {
-    socket.emit('chat', { text });
-  }
+  socket.emit('chat', { text });
   chatInput.value = '';
   chatInput.focus();
 }
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
-
-function setReply(msgId, sender, text) {
-  replyingTo = { id: msgId, sender, text };
-  let replyBar = document.getElementById('reply-bar');
-  if (!replyBar) {
-    replyBar = document.createElement('div');
-    replyBar.id = 'reply-bar';
-    document.querySelector('.chat-input-row').before(replyBar);
-  }
-  replyBar.innerHTML = `
-    <span class="reply-preview">↩ <b>${escapeHtml(sender)}</b>: ${escapeHtml(text.slice(0, 40))}${text.length > 40 ? '...' : ''}</span>
-    <button id="cancel-reply-btn">✕</button>
-  `;
-  replyBar.classList.remove('hidden');
-  document.getElementById('cancel-reply-btn').addEventListener('click', cancelReply);
-  chatInput.focus();
-}
-
-function cancelReply() {
-  replyingTo = null;
-  const replyBar = document.getElementById('reply-bar');
-  if (replyBar) replyBar.classList.add('hidden');
-}
 
 function isImageUrl(text) {
   const t = text.trim();
@@ -234,84 +220,19 @@ socket.on('chat', (msg) => {
     div.textContent = msg.text;
   } else {
     div.className = 'chat-msg';
-    div.setAttribute('data-msg-id', msg.id);
-
-    let replyHtml = '';
-    if (msg.replyTo) {
-      replyHtml = `<div class="msg-reply">↩ <b>${escapeHtml(msg.replyTo.sender)}</b>: ${escapeHtml(msg.replyTo.text.slice(0, 30))}</div>`;
-    }
-
     div.innerHTML = `
-      ${replyHtml}
       <div class="msg-sender">${escapeHtml(msg.sender)}</div>
       ${renderMessageContent(msg.text)}
-      <div class="msg-actions">
-        <button class="msg-react-btn" data-msgid="${msg.id}">😊</button>
-        <button class="msg-reply-btn" data-msgid="${msg.id}" data-sender="${escapeHtml(msg.sender)}" data-text="${escapeHtml(msg.text)}">↩</button>
-        <span class="msg-reactions-list" data-msgid="${msg.id}"></span>
-      </div>
     `;
 
-    div.querySelector('.msg-reply-btn').addEventListener('click', (e) => {
-      setReply(msg.id, msg.sender, msg.text);
-    });
-
-    div.querySelector('.msg-react-btn').addEventListener('click', (e) => {
-      showReactPicker(msg.id, e.target);
-    });
-
     // Play sound for messages from others
-    if (msg.sender !== myName && soundEnabled) {
-      msgSound.currentTime = 0;
-      msgSound.play().catch(() => {});
+    if (msg.sender !== myName) {
+      playMsgSound();
     }
   }
 
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
-});
-
-// ---- MESSAGE REACTIONS ----
-const msgReactEmojis = ['❤️', '😂', '👍', '😮', '😢', '🔥'];
-
-function showReactPicker(msgId, anchor) {
-  let picker = document.getElementById('react-picker');
-  if (picker) picker.remove();
-
-  picker = document.createElement('div');
-  picker.id = 'react-picker';
-  picker.innerHTML = msgReactEmojis.map(e =>
-    `<button class="picker-emoji" data-emoji="${e}">${e}</button>`
-  ).join('');
-
-  const rect = anchor.getBoundingClientRect();
-  picker.style.left = rect.left + 'px';
-  picker.style.top = (rect.top - 40) + 'px';
-  document.body.appendChild(picker);
-
-  picker.querySelectorAll('.picker-emoji').forEach(btn => {
-    btn.addEventListener('click', () => {
-      socket.emit('msg-reaction', { msgId, emoji: btn.dataset.emoji });
-      picker.remove();
-    });
-  });
-
-  setTimeout(() => {
-    document.addEventListener('click', function closePicker() {
-      if (picker) picker.remove();
-      document.removeEventListener('click', closePicker);
-    }, { once: true });
-  }, 10);
-}
-
-socket.on('msg-reaction', ({ msgId, emoji }) => {
-  const list = document.querySelector(`.msg-reactions-list[data-msgid="${msgId}"]`);
-  if (list) {
-    const span = document.createElement('span');
-    span.className = 'msg-reaction-emoji';
-    span.textContent = emoji;
-    list.appendChild(span);
-  }
 });
 
 // ---- REACTIONS ----
