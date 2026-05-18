@@ -159,33 +159,127 @@ socket.on('users', (list) => {
 });
 
 // ---- CHAT ----
+let replyingTo = null;
+
 function sendMessage() {
   const text = chatInput.value.trim();
   if (!text) return;
-  socket.emit('chat', text);
+  if (replyingTo) {
+    socket.emit('chat', { text, replyTo: replyingTo });
+    cancelReply();
+  } else {
+    socket.emit('chat', { text });
+  }
   chatInput.value = '';
   chatInput.focus();
 }
 sendBtn.addEventListener('click', sendMessage);
 chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
 
+function setReply(msgId, sender, text) {
+  replyingTo = { id: msgId, sender, text };
+  let replyBar = document.getElementById('reply-bar');
+  if (!replyBar) {
+    replyBar = document.createElement('div');
+    replyBar.id = 'reply-bar';
+    document.querySelector('.chat-input-row').before(replyBar);
+  }
+  replyBar.innerHTML = `
+    <span class="reply-preview">↩ <b>${escapeHtml(sender)}</b>: ${escapeHtml(text.slice(0, 40))}${text.length > 40 ? '...' : ''}</span>
+    <button id="cancel-reply-btn">✕</button>
+  `;
+  replyBar.classList.remove('hidden');
+  document.getElementById('cancel-reply-btn').addEventListener('click', cancelReply);
+  chatInput.focus();
+}
+
+function cancelReply() {
+  replyingTo = null;
+  const replyBar = document.getElementById('reply-bar');
+  if (replyBar) replyBar.classList.add('hidden');
+}
+
 socket.on('chat', (msg) => {
   const div = document.createElement('div');
-  const isSystem = msg.sender.includes('Система');
+  const isSystem = msg.sender && msg.sender.includes('Система');
 
   if (isSystem) {
     div.className = 'chat-msg system';
     div.textContent = msg.text;
   } else {
     div.className = 'chat-msg';
+    div.setAttribute('data-msg-id', msg.id);
+
+    let replyHtml = '';
+    if (msg.replyTo) {
+      replyHtml = `<div class="msg-reply">↩ <b>${escapeHtml(msg.replyTo.sender)}</b>: ${escapeHtml(msg.replyTo.text.slice(0, 30))}</div>`;
+    }
+
     div.innerHTML = `
+      ${replyHtml}
       <div class="msg-sender">${escapeHtml(msg.sender)}</div>
       <div class="msg-text">${escapeHtml(msg.text)}</div>
+      <div class="msg-actions">
+        <button class="msg-react-btn" data-msgid="${msg.id}">😊</button>
+        <button class="msg-reply-btn" data-msgid="${msg.id}" data-sender="${escapeHtml(msg.sender)}" data-text="${escapeHtml(msg.text)}">↩</button>
+        <span class="msg-reactions-list" data-msgid="${msg.id}"></span>
+      </div>
     `;
+
+    div.querySelector('.msg-reply-btn').addEventListener('click', (e) => {
+      setReply(msg.id, msg.sender, msg.text);
+    });
+
+    div.querySelector('.msg-react-btn').addEventListener('click', (e) => {
+      showReactPicker(msg.id, e.target);
+    });
   }
 
   chatMessages.appendChild(div);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+// ---- MESSAGE REACTIONS ----
+const msgReactEmojis = ['❤️', '😂', '👍', '😮', '😢', '🔥'];
+
+function showReactPicker(msgId, anchor) {
+  let picker = document.getElementById('react-picker');
+  if (picker) picker.remove();
+
+  picker = document.createElement('div');
+  picker.id = 'react-picker';
+  picker.innerHTML = msgReactEmojis.map(e =>
+    `<button class="picker-emoji" data-emoji="${e}">${e}</button>`
+  ).join('');
+
+  const rect = anchor.getBoundingClientRect();
+  picker.style.left = rect.left + 'px';
+  picker.style.top = (rect.top - 40) + 'px';
+  document.body.appendChild(picker);
+
+  picker.querySelectorAll('.picker-emoji').forEach(btn => {
+    btn.addEventListener('click', () => {
+      socket.emit('msg-reaction', { msgId, emoji: btn.dataset.emoji });
+      picker.remove();
+    });
+  });
+
+  setTimeout(() => {
+    document.addEventListener('click', function closePicker() {
+      if (picker) picker.remove();
+      document.removeEventListener('click', closePicker);
+    }, { once: true });
+  }, 10);
+}
+
+socket.on('msg-reaction', ({ msgId, emoji }) => {
+  const list = document.querySelector(`.msg-reactions-list[data-msgid="${msgId}"]`);
+  if (list) {
+    const span = document.createElement('span');
+    span.className = 'msg-reaction-emoji';
+    span.textContent = emoji;
+    list.appendChild(span);
+  }
 });
 
 // ---- REACTIONS ----

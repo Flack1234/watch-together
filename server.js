@@ -32,9 +32,19 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('chat', (text) => {
+  socket.on('chat', (data) => {
     const name = users.get(socket.id) || 'Анонім';
-    io.emit('chat', { sender: name, text });
+    const msg = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      sender: name,
+      text: typeof data === 'string' ? data : data.text,
+      replyTo: (typeof data === 'object' && data.replyTo) ? data.replyTo : null
+    };
+    io.emit('chat', msg);
+  });
+
+  socket.on('msg-reaction', ({ msgId, emoji }) => {
+    io.emit('msg-reaction', { msgId, emoji });
   });
 
   socket.on('reaction', (emoji) => {
