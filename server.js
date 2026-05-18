@@ -57,10 +57,34 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('sync', { videoId: currentVideo.videoId, time, playing: currentVideo.playing });
   });
 
+  // ---- VOICE CHAT (WebRTC signaling) ----
+  socket.on('voice-join', () => {
+    socket.join('voice-room');
+    // Notify others in voice room that a new user joined
+    socket.to('voice-room').emit('voice-user-joined', socket.id);
+    // Send list of current voice users to the new user
+    const voiceRoom = io.sockets.adapter.rooms.get('voice-room');
+    if (voiceRoom) {
+      const voiceUsers = Array.from(voiceRoom).filter(id => id !== socket.id);
+      socket.emit('voice-users', voiceUsers);
+    }
+  });
+
+  socket.on('voice-leave', () => {
+    socket.leave('voice-room');
+    socket.to('voice-room').emit('voice-user-left', socket.id);
+  });
+
+  socket.on('voice-signal', ({ to, signal }) => {
+    io.to(to).emit('voice-signal', { from: socket.id, signal });
+  });
+
   socket.on('disconnect', () => {
     const name = users.get(socket.id);
     users.delete(socket.id);
     io.emit('users', Array.from(users.values()));
+    // Notify voice room
+    socket.to('voice-room').emit('voice-user-left', socket.id);
     if (name) {
       io.emit('chat', { sender: '⚡ Система', text: `${name} вийшов(-ла)` });
     }
