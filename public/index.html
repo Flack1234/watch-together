@@ -54,9 +54,25 @@
           </div>
         </div>
         <div id="users-list"></div>
-        <div class="voice-controls">
-          <button id="mic-btn" class="mic-off">🎤 Увімкнути мікрофон</button>
-          <span id="mic-status">Мікрофон вимкнено</span>
+        <div class="audio-panel">
+          <div class="audio-row">
+            <button id="mic-btn" class="audio-btn off">🎤</button>
+            <span class="audio-label">Мікрофон</span>
+            <input type="range" id="mic-volume" min="0" max="100" value="100" class="volume-slider" />
+            <span id="mic-vol-value" class="vol-value">100%</span>
+          </div>
+          <div class="audio-row">
+            <button id="speaker-btn" class="audio-btn on">🔊</button>
+            <span class="audio-label">Навушники</span>
+            <input type="range" id="speaker-volume" min="0" max="100" value="100" class="volume-slider" />
+            <span id="speaker-vol-value" class="vol-value">100%</span>
+          </div>
+          <div class="audio-row">
+            <button id="video-mute-btn" class="audio-btn on">🎬</button>
+            <span class="audio-label">Відео</span>
+            <input type="range" id="video-volume" min="0" max="100" value="100" class="volume-slider" />
+            <span id="video-vol-value" class="vol-value">100%</span>
+          </div>
         </div>
       </section>
 

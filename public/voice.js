@@ -1,10 +1,20 @@
 // ---- VOICE CHAT (WebRTC) ----
 const micBtn = document.getElementById('mic-btn');
-const micStatus = document.getElementById('mic-status');
+const speakerBtn = document.getElementById('speaker-btn');
+const videoMuteBtn = document.getElementById('video-mute-btn');
+const micVolume = document.getElementById('mic-volume');
+const speakerVolume = document.getElementById('speaker-volume');
+const videoVolume = document.getElementById('video-volume');
+const micVolValue = document.getElementById('mic-vol-value');
+const speakerVolValue = document.getElementById('speaker-vol-value');
+const videoVolValue = document.getElementById('video-vol-value');
 
 let localStream = null;
-let peers = {}; // { peerId: RTCPeerConnection }
+let micGainNode = null;
+let audioContext = null;
+let peers = {};
 let micEnabled = false;
+let speakerEnabled = true;
 
 const ICE_SERVERS = {
   iceServers: [
@@ -13,15 +23,25 @@ const ICE_SERVERS = {
   ]
 };
 
-// Toggle microphone
+// ---- MIC TOGGLE ----
 micBtn.addEventListener('click', async () => {
   if (!micEnabled) {
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      // Create gain node for mic volume control
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(localStream);
+      micGainNode = audioContext.createGain();
+      micGainNode.gain.value = micVolume.value / 100;
+      const dest = audioContext.createMediaStreamDestination();
+      source.connect(micGainNode);
+      micGainNode.connect(dest);
+      // Replace localStream with processed stream
+      localStream = dest.stream;
+
       micEnabled = true;
-      micBtn.className = 'mic-on';
-      micBtn.textContent = '🎤 Мікрофон увімкнено';
-      micStatus.textContent = 'Голос активний';
+      micBtn.classList.remove('off');
+      micBtn.classList.add('on');
       socket.emit('voice-join');
     } catch (err) {
       alert('Не вдалося отримати доступ до мікрофона. Перевір дозволи браузера.');
@@ -33,21 +53,82 @@ micBtn.addEventListener('click', async () => {
       localStream.getTracks().forEach(t => t.stop());
       localStream = null;
     }
-    // Close all peer connections
+    if (audioContext) {
+      audioContext.close();
+      audioContext = null;
+    }
     Object.keys(peers).forEach(peerId => {
       peers[peerId].close();
       delete peers[peerId];
     });
-    micBtn.className = 'mic-off';
-    micBtn.textContent = '🎤 Увімкнути мікрофон';
-    micStatus.textContent = 'Мікрофон вимкнено';
+    micBtn.classList.remove('on');
+    micBtn.classList.add('off');
     socket.emit('voice-leave');
+  }
+});
+
+// ---- SPEAKER TOGGLE ----
+speakerBtn.addEventListener('click', () => {
+  speakerEnabled = !speakerEnabled;
+  if (speakerEnabled) {
+    speakerBtn.classList.remove('off');
+    speakerBtn.classList.add('on');
+    speakerBtn.textContent = '🔊';
+  } else {
+    speakerBtn.classList.remove('on');
+    speakerBtn.classList.add('off');
+    speakerBtn.textContent = '🔇';
+  }
+  // Mute/unmute all remote audio elements
+  document.querySelectorAll('audio[data-peer]').forEach(audio => {
+    audio.muted = !speakerEnabled;
+  });
+});
+
+// ---- VIDEO MUTE TOGGLE ----
+videoMuteBtn.addEventListener('click', () => {
+  if (!player) return;
+  const isMuted = player.isMuted();
+  if (isMuted) {
+    player.unMute();
+    videoMuteBtn.classList.remove('off');
+    videoMuteBtn.classList.add('on');
+    videoMuteBtn.textContent = '🎬';
+  } else {
+    player.mute();
+    videoMuteBtn.classList.remove('on');
+    videoMuteBtn.classList.add('off');
+    videoMuteBtn.textContent = '🔇';
+  }
+});
+
+// ---- VOLUME SLIDERS ----
+micVolume.addEventListener('input', () => {
+  const val = micVolume.value;
+  micVolValue.textContent = val + '%';
+  if (micGainNode) {
+    micGainNode.gain.value = val / 100;
+  }
+});
+
+speakerVolume.addEventListener('input', () => {
+  const val = speakerVolume.value;
+  speakerVolValue.textContent = val + '%';
+  document.querySelectorAll('audio[data-peer]').forEach(audio => {
+    audio.volume = val / 100;
+  });
+});
+
+videoVolume.addEventListener('input', () => {
+  const val = videoVolume.value;
+  videoVolValue.textContent = val + '%';
+  if (player && player.setVolume) {
+    player.setVolume(val);
   }
 });
 
 // --- WebRTC Signaling via Socket.IO ---
 
-// When another user joins voice, create an offer to them
 socket.on('voice-user-joined', async (peerId) => {
   if (!micEnabled) return;
   const pc = createPeerConnection(peerId);
@@ -56,15 +137,15 @@ socket.on('voice-user-joined', async (peerId) => {
   socket.emit('voice-signal', { to: peerId, signal: { type: 'offer', sdp: offer.sdp } });
 });
 
-// When a user leaves voice
 socket.on('voice-user-left', (peerId) => {
   if (peers[peerId]) {
     peers[peerId].close();
     delete peers[peerId];
   }
+  const audioEl = document.querySelector(`audio[data-peer="${peerId}"]`);
+  if (audioEl) audioEl.remove();
 });
 
-// Receive signal (offer/answer/ice-candidate)
 socket.on('voice-signal', async ({ from, signal }) => {
   if (!micEnabled) return;
 
@@ -85,10 +166,7 @@ socket.on('voice-signal', async ({ from, signal }) => {
   }
 });
 
-// Get list of current voice users when joining
-socket.on('voice-users', (userIds) => {
-  // We'll receive offers from them via voice-user-joined
-});
+socket.on('voice-users', (userIds) => {});
 
 function createPeerConnection(peerId) {
   if (peers[peerId]) {
@@ -98,23 +176,22 @@ function createPeerConnection(peerId) {
   const pc = new RTCPeerConnection(ICE_SERVERS);
   peers[peerId] = pc;
 
-  // Add local audio tracks
   if (localStream) {
     localStream.getTracks().forEach(track => {
       pc.addTrack(track, localStream);
     });
   }
 
-  // When we get remote audio, play it
   pc.ontrack = (event) => {
     const audio = new Audio();
     audio.srcObject = event.streams[0];
     audio.autoplay = true;
+    audio.volume = speakerVolume.value / 100;
+    audio.muted = !speakerEnabled;
     audio.setAttribute('data-peer', peerId);
     document.body.appendChild(audio);
   };
 
-  // ICE candidates
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit('voice-signal', {
@@ -128,7 +205,6 @@ function createPeerConnection(peerId) {
     if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
       pc.close();
       delete peers[peerId];
-      // Remove audio element
       const audioEl = document.querySelector(`audio[data-peer="${peerId}"]`);
       if (audioEl) audioEl.remove();
     }
