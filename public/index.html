@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Watch Together</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <!-- Login overlay -->
+  <div id="login-overlay">
+    <div class="login-card">
+      <h1>🎬 Watch Together</h1>
+      <p>Введи своє ім'я, щоб приєднатися</p>
+      <input type="text" id="name-input" placeholder="Твоє ім'я..." maxlength="20" autofocus />
+      <button id="join-btn">Увійти</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="hidden">
+    <header>
+      <h1>🎬 Watch Together</h1>
+      <div id="online">
+        <span id="online-count">0</span> онлайн
+      </div>
+    </header>
+
+    <main>
+      <!-- Video section -->
+      <section class="video-section">
+        <div class="video-input-row">
+          <input type="text" id="video-url" placeholder="Встав посилання на YouTube відео..." />
+          <button id="load-btn">▶ Завантажити</button>
+        </div>
+        <div class="video-wrapper">
+          <div id="player-placeholder">
+            <p>Встав посилання на YouTube відео вище 👆</p>
+          </div>
+          <div id="player-container" class="hidden">
+            <div id="yt-player"></div>
+          </div>
+        </div>
+        <div id="users-list"></div>
+      </section>
+
+      <!-- Chat section -->
+      <section class="chat-section">
+        <div class="chat-header">💬 Чат</div>
+        <div id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Напиши повідомлення..." maxlength="500" />
+          <button id="send-btn">➤</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
