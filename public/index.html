@@ -72,8 +72,13 @@
         <div class="chat-header">💬 Чат</div>
         <div id="chat-messages"></div>
         <div class="chat-input-row">
-          <input type="text" id="chat-input" placeholder="Напиши повідомлення..." maxlength="500" />
+          <button id="gif-btn" title="Надіслати GIF">GIF</button>
+          <input type="text" id="chat-input" placeholder="Напиши повідомлення або встав URL картинки..." maxlength="500" />
           <button id="send-btn">➤</button>
+        </div>
+        <div id="gif-panel" class="hidden">
+          <input type="text" id="gif-search" placeholder="Пошук GIF..." />
+          <div id="gif-results"></div>
         </div>
       </section>
     </main>

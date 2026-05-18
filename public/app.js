@@ -25,6 +25,10 @@ let player = null;
 let myName = '';
 let ignoreEvents = false; // prevents echo loops
 
+// ---- NOTIFICATION SOUND ----
+const msgSound = new Audio('data:audio/wav;base64,UklGRl4FAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YToFAAAAAP//AAAAAP//AAD//wAAAAD//wAAAAAAAQABAAEAAQACAAIAAwADAAQABQAGAAcACQAKAAwADgARABMAFgAZABwAIAAkACgALAAxADYAOwBBAEcATQBTAFoAYQBoAG8AdgB+AIUAjACUAJsAowCqALIAuQDBAMgAzwDWAN0A4wDpAPAA9QD7AAABBQEKAQ4BEgEWARkBHAEeASABIQEiASIBIgEhASABHgEcARkBFgESAQ4BCgEFAQAB+wD1APAA6QDjAN0A1gDPAMgAwQC6ALIAqwCjAJsAlACMAIUAfgB2AG8AaABhAFoAUwBNAEcAQQA7ADYAMQAsACgAJAAgABwAGQAWABMAEQAOAAwACgAJAAcABgAFAAQAAwACAAIAAQABAAAAAAAA//8AAP//AAAAAP//AAD//wAAAAAAAAAAAAD//wAA//8AAP//AAD//wAA/v8AAP7/AAD+/wAA/v8AAP7/AAD9/wAA/f8AAP3/AAD8/wAA/P8AAPv/AAD7/wAA+v8AAPr/AAD5/wAA+P8AAPj/AAD3/wAA9v8AAPX/AAD0/wAA9P8AAPP/AADy/wAA8f8AAPD/AADv/wAA7v8AAO3/AADs/wAA6/8AAOr/AADp/wAA6P8AAOf/AADm/wAA5f8AAOT/AADj/wAA4v8AAOH/AADh/wAA4P8AAN//AADe/wAA3v8AAN3/AADd/wAA3P8AANz/AADb/wAA2/8AANv/AADb/wAA2v8AANr/AADa/wAA2v8AANr/AADa/wAA2v8AANv/AADb/wAA2/8AANv/AADc/wAA3P8AAN3/AADd/wAA3v8AAN7/AADf/wAA4P8AAOH/AADh/wAA4v8AAOP/AADk/wAA5f8AAOb/AADn/wAA6P8AAOn/AADq/wAA6/8AAOz/AADt/wAA7v8AAO//AADw/wAA8f8AAPL/AADz/wAA9P8AAPX/AAD1/wAA9v8AAPf/AAD4/wAA+P8AAPn/AAD6/wAA+v8AAPv/AAD7/wAA/P8AAPz/AAD9/wAA/f8AAP3/AAD+/wAA/v8AAP7/AAD+/wAA//8AAP//AAD//wAA//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+let soundEnabled = true;
+
 // ---- PASSWORD ----
 function checkPassword() {
   const pwd = passwordInput.value.trim();
@@ -199,6 +203,28 @@ function cancelReply() {
   if (replyBar) replyBar.classList.add('hidden');
 }
 
+function isImageUrl(text) {
+  const t = text.trim();
+  return /^https?:\/\/\S+\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i.test(t)
+    || /^https?:\/\/media\.tenor\.com\//i.test(t)
+    || /^https?:\/\/i\.giphy\.com\//i.test(t);
+}
+
+function renderMessageContent(text) {
+  if (isImageUrl(text)) {
+    return `<img class="msg-image" src="${escapeHtml(text)}" loading="lazy" onclick="showFullImage('${escapeHtml(text)}')" />`;
+  }
+  return `<div class="msg-text">${escapeHtml(text)}</div>`;
+}
+
+function showFullImage(url) {
+  const overlay = document.createElement('div');
+  overlay.id = 'image-overlay';
+  overlay.innerHTML = `<img src="${url}" />`;
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+
 socket.on('chat', (msg) => {
   const div = document.createElement('div');
   const isSystem = msg.sender && msg.sender.includes('Система');
@@ -218,7 +244,7 @@ socket.on('chat', (msg) => {
     div.innerHTML = `
       ${replyHtml}
       <div class="msg-sender">${escapeHtml(msg.sender)}</div>
-      <div class="msg-text">${escapeHtml(msg.text)}</div>
+      ${renderMessageContent(msg.text)}
       <div class="msg-actions">
         <button class="msg-react-btn" data-msgid="${msg.id}">😊</button>
         <button class="msg-reply-btn" data-msgid="${msg.id}" data-sender="${escapeHtml(msg.sender)}" data-text="${escapeHtml(msg.text)}">↩</button>
@@ -233,6 +259,12 @@ socket.on('chat', (msg) => {
     div.querySelector('.msg-react-btn').addEventListener('click', (e) => {
       showReactPicker(msg.id, e.target);
     });
+
+    // Play sound for messages from others
+    if (msg.sender !== myName && soundEnabled) {
+      msgSound.currentTime = 0;
+      msgSound.play().catch(() => {});
+    }
   }
 
   chatMessages.appendChild(div);
@@ -305,6 +337,54 @@ function spawnReaction(emoji) {
   el.style.bottom = '10%';
   reactionsCanvas.appendChild(el);
   setTimeout(() => el.remove(), 2500);
+}
+
+// ---- GIF SEARCH ----
+const gifBtn = document.getElementById('gif-btn');
+const gifPanel = document.getElementById('gif-panel');
+const gifSearch = document.getElementById('gif-search');
+const gifResults = document.getElementById('gif-results');
+const TENOR_KEY = 'AIzaSyBqkFMqfpif69GJvsuk-YMfNhJsTnACPIo';
+let gifDebounce = null;
+
+gifBtn.addEventListener('click', () => {
+  gifPanel.classList.toggle('hidden');
+  if (!gifPanel.classList.contains('hidden')) {
+    gifSearch.focus();
+    searchGifs('funny');
+  }
+});
+
+gifSearch.addEventListener('input', () => {
+  clearTimeout(gifDebounce);
+  gifDebounce = setTimeout(() => {
+    const q = gifSearch.value.trim();
+    if (q.length > 1) searchGifs(q);
+  }, 400);
+});
+
+async function searchGifs(query) {
+  try {
+    const res = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=${TENOR_KEY}&limit=12&media_filter=tinygif`);
+    const data = await res.json();
+    gifResults.innerHTML = '';
+    if (data.results) {
+      data.results.forEach(gif => {
+        const url = gif.media_formats.tinygif.url;
+        const img = document.createElement('img');
+        img.src = url;
+        img.loading = 'lazy';
+        img.addEventListener('click', () => {
+          socket.emit('chat', { text: url });
+          gifPanel.classList.add('hidden');
+          gifSearch.value = '';
+        });
+        gifResults.appendChild(img);
+      });
+    }
+  } catch (e) {
+    console.error('GIF search error:', e);
+  }
 }
 
 // ---- HELPERS ----
